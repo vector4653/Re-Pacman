@@ -51,52 +51,30 @@ class GameController(object):
         self.nodes = NodeGroup(self.mazedata.obj.name+".txt")
         self.mazedata.obj.setPortalPairs(self.nodes)
         self.mazedata.obj.connectHomeNodes(self.nodes)
+        
         self.pacman = Pacman(self.nodes.getNodeFromTiles(*self.mazedata.obj.pacmanStart))
         self.pellets = PelletGroup(self.mazedata.obj.name+".txt")
         self.ghosts = GhostGroup(self.nodes.getStartTempNode(), self.pacman)
 
+        # Inject Game State into Pacman for AI
+        self.pacman.setGameState(self.ghosts.ghosts, self.pellets)
+
+        # Ghost Setup
         self.ghosts.pinky.setStartNode(self.nodes.getNodeFromTiles(*self.mazedata.obj.addOffset(2, 3)))
         self.ghosts.inky.setStartNode(self.nodes.getNodeFromTiles(*self.mazedata.obj.addOffset(0, 3)))
         self.ghosts.clyde.setStartNode(self.nodes.getNodeFromTiles(*self.mazedata.obj.addOffset(4, 3)))
         self.ghosts.setSpawnNode(self.nodes.getNodeFromTiles(*self.mazedata.obj.addOffset(2, 3)))
         self.ghosts.blinky.setStartNode(self.nodes.getNodeFromTiles(*self.mazedata.obj.addOffset(2, 0)))
 
+        # Force Blinky to normal mode to ensure speed is set and home access is denied
+        self.ghosts.blinky.normalMode()
+
+        # Blinky is player controlled, but still needs to respect house rules initially
         self.nodes.denyHomeAccess(self.pacman)
         self.nodes.denyHomeAccessList(self.ghosts)
         self.ghosts.inky.startNode.denyAccess(RIGHT, self.ghosts.inky)
         self.ghosts.clyde.startNode.denyAccess(LEFT, self.ghosts.clyde)
         self.mazedata.obj.denyGhostsAccess(self.ghosts, self.nodes)
-
-    def startGame_old(self):      
-        self.mazedata.loadMaze(self.level)#######
-        self.mazesprites = MazeSprites("maze1.txt", "maze1_rotation.txt")
-        self.setBackground()
-        self.nodes = NodeGroup("maze1.txt")
-        self.nodes.setPortalPair((0,17), (27,17))
-        homekey = self.nodes.createHomeNodes(11.5, 14)
-        self.nodes.connectHomeNodes(homekey, (12,14), LEFT)
-        self.nodes.connectHomeNodes(homekey, (15,14), RIGHT)
-        self.pacman = Pacman(self.nodes.getNodeFromTiles(15, 26))
-        self.pellets = PelletGroup("maze1.txt")
-        self.ghosts = GhostGroup(self.nodes.getStartTempNode(), self.pacman)
-        self.ghosts.blinky.setStartNode(self.nodes.getNodeFromTiles(2+11.5, 0+14))
-        self.ghosts.pinky.setStartNode(self.nodes.getNodeFromTiles(2+11.5, 3+14))
-        self.ghosts.inky.setStartNode(self.nodes.getNodeFromTiles(0+11.5, 3+14))
-        self.ghosts.clyde.setStartNode(self.nodes.getNodeFromTiles(4+11.5, 3+14))
-        self.ghosts.setSpawnNode(self.nodes.getNodeFromTiles(2+11.5, 3+14))
-
-        self.nodes.denyHomeAccess(self.pacman)
-        self.nodes.denyHomeAccessList(self.ghosts)
-        self.nodes.denyAccessList(2+11.5, 3+14, LEFT, self.ghosts)
-        self.nodes.denyAccessList(2+11.5, 3+14, RIGHT, self.ghosts)
-        self.ghosts.inky.startNode.denyAccess(RIGHT, self.ghosts.inky)
-        self.ghosts.clyde.startNode.denyAccess(LEFT, self.ghosts.clyde)
-        self.nodes.denyAccessList(12, 14, UP, self.ghosts)
-        self.nodes.denyAccessList(15, 14, UP, self.ghosts)
-        self.nodes.denyAccessList(12, 26, UP, self.ghosts)
-        self.nodes.denyAccessList(15, 26, UP, self.ghosts)
-
-        
 
     def update(self):
         dt = self.clock.tick(30) / 1000.0
@@ -221,6 +199,7 @@ class GameController(object):
         self.pause.paused = True
         self.startGame()
         self.textgroup.updateLevel(self.level)
+        self.pacman.setGameState(self.ghosts.ghosts, self.pellets)
 
     def restartGame(self):
         self.lives = 5
@@ -234,6 +213,7 @@ class GameController(object):
         self.textgroup.showText(READYTXT)
         self.lifesprites.resetLives(self.lives)
         self.fruitCaptured = []
+        self.pacman.setGameState(self.ghosts.ghosts, self.pellets)
 
     def resetLevel(self):
         self.pause.paused = True
@@ -274,6 +254,3 @@ if __name__ == "__main__":
     game.startGame()
     while True:
         game.update()
-
-
-
