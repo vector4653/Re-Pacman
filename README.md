@@ -10,10 +10,11 @@
 
 ## 🚀 Features
 
-- **Greedy ghost:-** AIl ghosts choose the direction that reduces squared distance to their goal (fast, simple chase behavior).
-- Playable ghost: control **Blinky** using the arrow keys and attempt to catch the AIlPac-Man before he clears the map.
+- **Greedy ghost:-** All ghosts choose the direction that reduces squared distance to their goal (fast, simple chase behavior).
+- Playable ghost: control **Blinky** using the arrow keys and attempt to catch the Pac-Man before he clears the map.
 - Enhanced Pac-Man Algorithm:
   - Power pellet prioritization
+  - Attack Ghosts when frightened.
   - BFS-based nearest pellet search
   - Safety-aware path selection when ghosts are nearby
   - Anti-oscillation (prevents frequent rapid reversals)
@@ -85,6 +86,6 @@ The game window will open and start on the first level. Press the window close b
 
 ## 📚 Source Code Attribution
 
-The original source code for this project was taken from **[pacmancode.com](https://pacmancode.com)**, a comprehensive tutorial series on building a Pac-Man game in Python using Pygame. This project extends and modifies that foundation with additional features such as playable ghost mode and enhanced AI algorithms.
+The original source code for this project was taken from **[pacmancode.com](https://pacmancode.com)**, a comprehensive tutorial series on building a Pac-Man game in Python using Pygame. This project extends and modifies that foundation with additional features such as playable ghost mode and enhanced Greedy algorithms.
 
 
