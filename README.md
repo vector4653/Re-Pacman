@@ -1,6 +1,6 @@
 # Re-Pacman ✅
 
-**Re-Pacman** is a Python reimplementation and extension of the classic Pac-Man game. This version contails several modifications and enhancements compared to a traditional Pac-Man clone, most notably:
+**Re-Pacman** is a Python reimplementation and extension of the classic Pac-Man game. This version contains several modifications and enhancements compared to a traditional Pac-Man clone, most notably:
 
 - A **greedy chase algorithm** used by ghosts to move toward their goals (minimizes distance to goal at each decision step).
 - The ability to **play as a ghost** (Blinky is player-controlled by default) while Pac-Man is controlled by a greedy algorithm.
