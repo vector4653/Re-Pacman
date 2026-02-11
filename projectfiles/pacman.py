@@ -37,6 +37,109 @@ class Pacman(Entity):
         self.ghosts = ghosts
         self.pellets = pellets
 
+    # ==================== MERGE SORT IMPLEMENTATION ====================
+    def mergeSort(self, arr, key_func=None):
+        """
+        Merge Sort - Divide and Conquer sorting algorithm
+        Time Complexity: O(n log n)
+        Space Complexity: O(n)
+        
+        Args:
+            arr: List of items to sort
+            key_func: Function to extract comparison key from each item
+        Returns:
+            New sorted list
+        """
+        if key_func is None:
+            key_func = lambda x: x
+        
+        # Base case: arrays with 0 or 1 element are already sorted
+        if len(arr) <= 1:
+            return arr[:]
+        
+        # DIVIDE: Split array into two halves
+        mid = len(arr) // 2
+        left_half = arr[:mid]
+        right_half = arr[mid:]
+        
+        # CONQUER: Recursively sort each half
+        sorted_left = self.mergeSort(left_half, key_func)
+        sorted_right = self.mergeSort(right_half, key_func)
+        
+        # COMBINE: Merge the two sorted halves
+        return self.merge(sorted_left, sorted_right, key_func)
+    
+    def merge(self, left, right, key_func):
+        """
+        Merge two sorted arrays into one sorted array
+        
+        Args:
+            left: First sorted array
+            right: Second sorted array
+            key_func: Function to extract comparison key
+        Returns:
+            Merged sorted array
+        """
+        result = []
+        left_idx = 0
+        right_idx = 0
+        
+        # Compare elements from both arrays and add smaller one to result
+        while left_idx < len(left) and right_idx < len(right):
+            if key_func(left[left_idx]) <= key_func(right[right_idx]):
+                result.append(left[left_idx])
+                left_idx += 1
+            else:
+                result.append(right[right_idx])
+                right_idx += 1
+        
+        # Add remaining elements from left array (if any)
+        while left_idx < len(left):
+            result.append(left[left_idx])
+            left_idx += 1
+        
+        # Add remaining elements from right array (if any)
+        while right_idx < len(right):
+            result.append(right[right_idx])
+            right_idx += 1
+        
+        return result
+    
+    def getSortedPelletsByDistance(self):
+        """
+        Get all pellets sorted by distance from Pacman (nearest first)
+        Uses custom merge sort implementation - O(n log n)
+        
+        Returns:
+            List of (distance_squared, pellet) tuples, sorted by distance
+        """
+        if not self.pellets.pelletList:
+            return []
+        
+        # Create list of (distance_squared, pellet) tuples
+        pellet_distances = []
+        for pellet in self.pellets.pelletList:
+            d_squared = (pellet.position - self.position).magnitudeSquared()
+            pellet_distances.append((d_squared, pellet))
+        
+        # Sort using our merge sort implementation with distance as key
+        sorted_pellets = self.mergeSort(pellet_distances, key_func=lambda x: x[0])
+        
+        return sorted_pellets
+    
+    def getNearestPellets(self, count=5):
+        """
+        Get the N nearest pellets using merge sort
+        
+        Args:
+            count: Number of nearest pellets to return
+        Returns:
+            List of pellet objects (nearest first)
+        """
+        sorted_pellets = self.getSortedPelletsByDistance()
+        return [pellet for dist, pellet in sorted_pellets[:count]]
+    # ==================== END MERGE SORT ====================
+
     def shouldFleeFromGhost(self, dt):
         """Check if Pacman should reverse direction to flee from an approaching ghost"""
         # Anti-oscillation: don't change direction too frequently
@@ -268,10 +371,69 @@ class Pacman(Entity):
         return best_direction
     
     def findBestDirectionToPellet(self, directions, target_locs):
-        """Find direction that leads to nearest target pellet"""
+        """
+        Find direction using hybrid approach:
+        - Early game: Use standard BFS
+        - Mid game: Use sorted pellets for efficient targeting
+        - Late game: Use divide-and-conquer region targeting + sorted pellets
+        """
         best_direction = directions[0]
-        best_distance = float('inf')
+        pellet_count = len(self.pellets.pelletList)
         
+        # Late game (<30 pellets): use divide-and-conquer region targeting
+        if pellet_count < 30 and pellet_count > 0:
+            centroid = self.getTargetCentroid()
+            if centroid is not None:
+                best_score = float('inf')
+                
+                for direction in directions:
+                    neighbor = self.node.neighbors[direction]
+                    if neighbor is None:
+                        continue
+                    
+                    # Combine centroid distance with local BFS
+                    centroid_dist = (neighbor.position - centroid).magnitudeSquared()
+                    local_bfs_dist = self.bfsDistance(neighbor, target_locs, max_depth=50)
+                    
+                    # Weight centroid more as pellets become sparser
+                    centroid_weight = max(0.001, 0.01 * (30 - pellet_count) / 30)
+                    score = centroid_dist * centroid_weight + local_bfs_dist
+                    
+                    if score < best_score:
+                        best_score = score
+                        best_direction = direction
+                
+                return best_direction
+        
+        # Mid/Early game: Use merge-sorted pellets for efficient nearest-pellet targeting
+        # Get nearest pellets using merge sort - O(n log n) sort + O(1) access
+        sorted_pellets = self.getSortedPelletsByDistance()
+        
+        if sorted_pellets:
+            # Target the nearest 3 pellets for decision making
+            nearest_pellet_locs = set()
+            for i, (dist, pellet) in enumerate(sorted_pellets[:3]):
+                loc = (int(round(pellet.position.x)), int(round(pellet.position.y)))
+                nearest_pellet_locs.add(loc)
+            
+            # Find direction that gets us closest to nearest pellets
+            best_distance = float('inf')
+            for direction in directions:
+                neighbor = self.node.neighbors[direction]
+                if neighbor is not None:
+                    # Check direct distance to nearest pellets (faster than full BFS)
+                    for loc in nearest_pellet_locs:
+                        dist = (neighbor.position.x - loc[0])**2 + (neighbor.position.y - loc[1])**2
+                        if dist < best_distance:
+                            best_distance = dist
+                            best_direction = direction
+            
+            # Validate with limited BFS to ensure path exists
+            if best_distance < float('inf'):
+                return best_direction
+        
+        # Fallback: use standard BFS approach
+        best_distance = float('inf')
         for direction in directions:
             neighbor = self.node.neighbors[direction]
             if neighbor is not None:
@@ -281,14 +443,96 @@ class Pacman(Entity):
                     best_direction = direction
         
         return best_direction
+    
+    def findDensestRegion(self, pellet_positions, bounds, min_size=3):
+        """Recursively find the region with highest pellet density using divide-and-conquer"""
+        min_x, max_x, min_y, max_y = bounds
+        
+        # Base case: region is small enough
+        if max_x - min_x < min_size * TILEWIDTH or max_y - min_y < min_size * TILEHEIGHT:
+            return bounds, len(pellet_positions)
+        
+        # Divide into 4 sub-regions
+        mid_x = (min_x + max_x) // 2
+        mid_y = (min_y + max_y) // 2
+        
+        regions = {
+            'NW': (min_x, mid_x, min_y, mid_y),
+            'NE': (mid_x, max_x, min_y, mid_y),
+            'SW': (min_x, mid_x, mid_y, max_y),
+            'SE': (mid_x, max_x, mid_y, max_y)
+        }
+        
+        best_region = None
+        best_count = -1
+        best_positions = []
+        
+        for name, (rx1, rx2, ry1, ry2) in regions.items():
+            region_pellets = [(x, y) for x, y in pellet_positions 
+                              if rx1 <= x < rx2 and ry1 <= y < ry2]
+            count = len(region_pellets)
+            if count > best_count:
+                best_count = count
+                best_region = (rx1, rx2, ry1, ry2)
+                best_positions = region_pellets
+        
+        # If no pellets found in any region, return current bounds
+        if best_count == 0:
+            return bounds, 0
+        
+        # Conquer: recurse into densest region
+        return self.findDensestRegion(best_positions, best_region, min_size)
+    
+    def getTargetCentroid(self):
+        """Get the center point of the densest pellet cluster"""
+        if not self.pellets.pelletList:
+            return None
+        
+        positions = [(p.position.x, p.position.y) for p in self.pellets.pelletList]
+        
+        # If very few pellets, just target the nearest one directly
+        if len(positions) <= 3:
+            # Find nearest pellet to current position
+            min_dist = float('inf')
+            nearest = None
+            for x, y in positions:
+                d = (x - self.position.x) ** 2 + (y - self.position.y) ** 2
+                if d < min_dist:
+                    min_dist = d
+                    nearest = (x, y)
+            if nearest:
+                return Vector2(nearest[0], nearest[1])
+            return None
+        
+        bounds = (0, SCREENWIDTH, 0, SCREENHEIGHT)
+        dense_bounds, count = self.findDensestRegion(positions, bounds)
+        
+        if count == 0:
+            return None
+        
+        # Calculate centroid of pellets in the dense region
+        rx1, rx2, ry1, ry2 = dense_bounds
+        in_region = [(x, y) for x, y in positions 
+                     if rx1 <= x < rx2 and ry1 <= y < ry2]
+        
+        if in_region:
+            cx = sum(x for x, y in in_region) / len(in_region)
+            cy = sum(y for x, y in in_region) / len(in_region)
+            return Vector2(cx, cy)
+        
+        return None
 
     def bfsDistance(self, start_node, pellet_locs, max_depth=500):
-        """BFS to find distance to nearest pellet - explore entire map"""
+        """BFS to find distance to nearest pellet with configurable depth limit"""
         queue = [(start_node, 0)]
         visited = {start_node}
         
         while queue:
             current, dist = queue.pop(0)
+            
+            # Respect max_depth to limit search in late-game hybrid mode
+            if dist > max_depth:
+                continue
             
             # Check if pellet at this node (use multiple coordinate methods for robustness)
             cx, cy = int(round(current.position.x)), int(round(current.position.y))
@@ -300,13 +544,13 @@ class Pacman(Entity):
             if (cx2, cy2) in pellet_locs:
                 return dist
             
-            # Add neighbors to queue - NO DEPTH LIMIT, explore entire map
+            # Add neighbors to queue
             for neighbor in current.neighbors.values():
                 if neighbor is not None and neighbor not in visited:
                     visited.add(neighbor)
                     queue.append((neighbor, dist + 1))
         
-        # No pellets found in entire map
+        # No pellets found within depth limit
         return float('inf')
 
     def isSafe(self, node):
