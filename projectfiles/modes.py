@@ -15,12 +15,12 @@ class MainMode(object):
 
     def scatter(self):
         self.mode = SCATTER
-        self.time = 7
+        self.time = 15  
         self.timer = 0
 
     def chase(self):
         self.mode = CHASE
-        self.time = 20
+        self.time = 8 
         self.timer = 0
 
 
@@ -51,7 +51,7 @@ class ModeController(object):
     def setFreightMode(self):
         if self.current in [SCATTER, CHASE]:
             self.timer = 0
-            self.time = 7
+            self.time = 12 
             self.current = FREIGHT
         elif self.current is FREIGHT:
             self.timer = 0

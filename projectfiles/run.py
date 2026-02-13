@@ -129,9 +129,9 @@ class GameController(object):
         if pellet:
             self.pellets.numEaten += 1
             self.updateScore(pellet.points)
-            if self.pellets.numEaten == 30:
+            if self.pellets.numEaten == 50: 
                 self.ghosts.inky.startNode.allowAccess(RIGHT, self.ghosts.inky)
-            if self.pellets.numEaten == 70:
+            if self.pellets.numEaten == 100:  
                 self.ghosts.clyde.startNode.allowAccess(LEFT, self.ghosts.clyde)
             self.pellets.pelletList.remove(pellet)
             if pellet.name == POWERPELLET:
