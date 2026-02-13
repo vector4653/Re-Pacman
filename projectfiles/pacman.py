@@ -105,10 +105,14 @@ class Pacman(Entity):
         
         return result
     
-    def getSortedPelletsByDistance(self):
+    def getSortedPelletsByDistance(self, pellet_type=None):
         """
-        Get all pellets sorted by distance from Pacman (nearest first)
+        Get pellets sorted by distance from Pacman (nearest first)
         Uses custom merge sort implementation - O(n log n)
+        
+        Args:
+            pellet_type: Optional filter - POWERPELLET or PELLET constant.
+                         If None, returns all pellets sorted.
         
         Returns:
             List of (distance_squared, pellet) tuples, sorted by distance
@@ -119,6 +123,9 @@ class Pacman(Entity):
         # Create list of (distance_squared, pellet) tuples
         pellet_distances = []
         for pellet in self.pellets.pelletList:
+            # Filter by pellet type if specified
+            if pellet_type is not None and pellet.name != pellet_type:
+                continue
             d_squared = (pellet.position - self.position).magnitudeSquared()
             pellet_distances.append((d_squared, pellet))
         
@@ -127,16 +134,17 @@ class Pacman(Entity):
         
         return sorted_pellets
     
-    def getNearestPellets(self, count=5):
+    def getNearestPellets(self, count=5, pellet_type=None):
         """
         Get the N nearest pellets using merge sort
         
         Args:
             count: Number of nearest pellets to return
+            pellet_type: Optional filter - POWERPELLET or PELLET constant
         Returns:
             List of pellet objects (nearest first)
         """
-        sorted_pellets = self.getSortedPelletsByDistance()
+        sorted_pellets = self.getSortedPelletsByDistance(pellet_type)
         return [pellet for dist, pellet in sorted_pellets[:count]]
     # ==================== END MERGE SORT ====================
 
@@ -380,9 +388,44 @@ class Pacman(Entity):
         best_direction = directions[0]
         pellet_count = len(self.pellets.pelletList)
         
+        # Determine if we're targeting power pellets
+        # Check if target_locs contains power pellet locations
+        power_pellets_exist = any(p.name == POWERPELLET for p in self.pellets.pelletList)
+        targeting_power_pellets = False
+        
+        if power_pellets_exist:
+            # Check if target_locs matches power pellet locations
+            for p in self.pellets.pelletList:
+                if p.name == POWERPELLET:
+                    loc = (int(round(p.position.x)), int(round(p.position.y)))
+                    if loc in target_locs:
+                        targeting_power_pellets = True
+                        break
+        
+        # If targeting power pellets, use simple sorted pellet approach (skip centroid)
+        # Power pellets are few (usually 4), so centroid-based targeting doesn't help
+        if targeting_power_pellets:
+            sorted_pellets = self.getSortedPelletsByDistance(pellet_type=POWERPELLET)
+            if sorted_pellets:
+                # Target the nearest power pellet directly
+                nearest_dist, nearest_pellet = sorted_pellets[0]
+                target_pos = nearest_pellet.position
+                
+                best_distance = float('inf')
+                for direction in directions:
+                    neighbor = self.node.neighbors[direction]
+                    if neighbor is not None:
+                        dist = (neighbor.position - target_pos).magnitudeSquared()
+                        if dist < best_distance:
+                            best_distance = dist
+                            best_direction = direction
+                return best_direction
+        
         # Late game (<30 pellets): use divide-and-conquer region targeting
+        # Only for regular pellets (power pellets handled above)
         if pellet_count < 30 and pellet_count > 0:
-            centroid = self.getTargetCentroid()
+            # Use filtered centroid for regular pellets only
+            centroid = self.getTargetCentroid(pellet_type=PELLET)
             if centroid is not None:
                 best_score = float('inf')
                 
@@ -403,14 +446,23 @@ class Pacman(Entity):
                         best_score = score
                         best_direction = direction
                 
-                return best_direction
+                # Only return if we found a valid path (score is not infinity)
+                if best_score < float('inf'):
+                    return best_direction
         
         # Mid/Early game: Use merge-sorted pellets for efficient nearest-pellet targeting
-        # Get nearest pellets using merge sort - O(n log n) sort + O(1) access
-        sorted_pellets = self.getSortedPelletsByDistance()
+        # FIXED: Use pellet type filter to prioritize power pellets when they exist
+        if targeting_power_pellets:
+            sorted_pellets = self.getSortedPelletsByDistance(pellet_type=POWERPELLET)
+        else:
+            sorted_pellets = self.getSortedPelletsByDistance(pellet_type=PELLET)
+        
+        # Fallback to all pellets if filtered list is empty
+        if not sorted_pellets:
+            sorted_pellets = self.getSortedPelletsByDistance()
         
         if sorted_pellets:
-            # Target the nearest 3 pellets for decision making
+            # Target the nearest 3 pellets of the target type for decision making
             nearest_pellet_locs = set()
             for i, (dist, pellet) in enumerate(sorted_pellets[:3]):
                 loc = (int(round(pellet.position.x)), int(round(pellet.position.y)))
@@ -483,12 +535,27 @@ class Pacman(Entity):
         # Conquer: recurse into densest region
         return self.findDensestRegion(best_positions, best_region, min_size)
     
-    def getTargetCentroid(self):
-        """Get the center point of the densest pellet cluster"""
+    def getTargetCentroid(self, pellet_type=None):
+        """
+        Get the center point of the densest pellet cluster
+        
+        Args:
+            pellet_type: Optional filter - POWERPELLET or PELLET constant.
+                         If None, uses all pellets.
+        """
         if not self.pellets.pelletList:
             return None
         
-        positions = [(p.position.x, p.position.y) for p in self.pellets.pelletList]
+        # Filter pellets by type if specified
+        if pellet_type is not None:
+            filtered_pellets = [p for p in self.pellets.pelletList if p.name == pellet_type]
+        else:
+            filtered_pellets = self.pellets.pelletList
+        
+        if not filtered_pellets:
+            return None
+        
+        positions = [(p.position.x, p.position.y) for p in filtered_pellets]
         
         # If very few pellets, just target the nearest one directly
         if len(positions) <= 3:
