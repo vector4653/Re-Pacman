@@ -82,6 +82,6 @@ The game window will open and start on the first level. Press the window close b
 
 ## 📚 Source Code Attribution
 
-The original source code for this project was taken from **[pacmancode.com](https://pacmancode.com)**, a comprehensive tutorial series on building a Pac-Man game in Python using Pygame. This project extends and modifies that foundation with additional features such as playable ghost mode and enhanced Greedy algorithms.
+The original source code for this project was taken from **[pacmancode.com](https://pacmancode.com)**, a comprehensive tutorial series on building a Pac-Man game in Python using Pygame. This project extends and modifies that foundation with additional AI behavior and gameplay tuning.
 
 
