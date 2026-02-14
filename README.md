@@ -1,24 +1,22 @@
 # Re-Pacman ✅
 
-**Re-Pacman** is a Python reimplementation and extension of the classic Pac-Man game. This version contains several modifications and enhancements compared to a traditional Pac-Man clone, most notably:
+**Re-Pacman** is a Python reimplementation and extension of the classic Pac-Man game. This version focuses on AI-driven Pac-Man behavior and tuned ghost movement, including:
 
-- A **greedy chase algorithm** used by ghosts to move toward their goals (minimizes distance to goal at each decision step).
-- The ability to **play as a ghost** (Blinky is player-controlled by default) while Pac-Man is controlled by a greedy algorithm.
-- Improvements to Pac-Man's Algorithm with prioritized pellet collection, BFS-based pellet search, fleeing behavior from nearby ghosts, and anti-oscillation logic.
+- A **greedy goal-directed algorithm** used by ghosts to move toward their mode targets (minimizes distance to goal at each decision step).
+- A Pac-Man AI that prioritizes frightened ghosts and power pellets, balances safety vs. progress, and avoids oscillation.
+- Hybrid pathing that combines BFS distance checks, merge-sorted pellet targeting, and late-game cluster targeting.
 
 ---
 
 ## 🚀 Features
 
-- **Greedy ghost:-** All ghosts choose the direction that reduces squared distance to their goal (fast, simple chase behavior).
-- Playable ghost: control **Blinky** using the arrow keys and attempt to catch the Pac-Man before he clears the map.
-- Enhanced Pac-Man Algorithm:
-  - Power pellet prioritization
-  - Attack Ghosts when frightened.
-  - BFS-based nearest pellet search
-  - Safety-aware path selection when ghosts are nearby
-  - Anti-oscillation (prevents frequent rapid reversals)
-- Standard Pac-Man features of Source Code: pellets, power pellets (frighten ghosts), fruits, multi-level mazes, and lives/score tracking.
+- **Greedy ghost AI:** All ghosts pick the direction that minimizes squared distance to their current goal.
+- **Pac-Man AI enhancements:**
+  - Prioritizes frightened ghosts, then power pellets, then regular pellets.
+  - Safety-aware routing when dangerous ghosts are nearby.
+  - Flee behavior with a cooldown to prevent oscillation.
+  - Hybrid pellet targeting: merge-sorted nearest pellets, BFS distance checks, and late-game densest-region targeting.
+- Standard Pac-Man features: pellets, power pellets (frighten ghosts), fruits, multi-level mazes, and lives/score tracking.
 
 ---
 
@@ -50,32 +48,30 @@ The game window will open and start on the first level. Press the window close b
 
 ## 🎮 Controls
 
-- Arrow keys — control **Blinky** (the red ghost; the player-controlled entity).
 - Space — pause/unpause the game.
 - Close window — quit.
-
-> Gameplay notes: Pac-Man is controlled by an Algorithm (so you are effectively playing as a ghost trying to catch him). Power pellets will frighten ghosts (they enter FREIGHT mode); when ghosts are frightened you can be eaten for points. Go back to the center to turn into a ghost again
 
 ---
 
 ## 🧠 Implementation details
 
-- The greedy chase algorithm is implemented in `projectfiles/entity.py` in the `goalDirection` method. For each valid direction, the ghost evaluates the squared distance from the potential next node to its `goal` and chooses the direction minimizing that distance.
+- The greedy goal selection lives in `projectfiles/entity.py` in `goalDirection`. For each valid direction, the ghost evaluates the squared distance from the next node to its `goal` and chooses the minimum.
 
-- Pac-Man Algorithm is implemented in `projectfiles/pacman.py` and includes:
-  - `pacmanDirection` — MAIN decision method prioritizing frightened ghosts, power pellets, and regular pellets.
-  - BFS-based nearest-pellet search and safety-aware path selection to balance pellet collection and avoiding nearby ghosts.
-  - `shouldFleeFromGhost` logic to reverse direction if a ghost is dangerously close ahead (with a small cooldown to avoid oscillation).
+- Pac-Man AI is implemented in `projectfiles/pacman.py` and includes:
+  - `pacmanDirection` as the main decision method with frightened-ghost chasing, power-pellet priority, and safety-aware routing.
+  - Merge sort for pellet distance ordering (`mergeSort`, `getSortedPelletsByDistance`) to target nearby pellets efficiently.
+  - Hybrid targeting with BFS distance checks and late-game densest-region centroid logic.
+  - `shouldFleeFromGhost` to reverse when a dangerous ghost is ahead, with a cooldown to prevent rapid oscillation.
 
-- Blinky (in `projectfiles/ghosts.py`) is overridden to accept keyboard input while still participating in normal game mode transitions.
+- Ghost modes and speed tuning are in `projectfiles/ghosts.py` and `projectfiles/modes.py` (scatter/chase/freight/spawn). Ghost speeds are reduced relative to Pac-Man for a more forgiving play pace.
 
 ---
 
 ## 📁 Project structure (selected files)
 
-- `projectfiles/run.py` — mail game controller and entry point
-- `projectfiles/pacman.py` — Pac-Man AIland behavior
-- `projectfiles/ghosts.py` — Ghost classes and player-control override for Blinky
+- `projectfiles/run.py` — main game controller and entry point
+- `projectfiles/pacman.py` — Pac-Man AI behavior
+- `projectfiles/ghosts.py` — Ghost classes, modes, and speed tuning
 - `projectfiles/entity.py` — Base entity behaviors, including `goalDirection` (greedy algorithm)
 - `projectfiles/pellets.py` — Pellet management
 - `projectfiles/nodes.py` — Maze node graph and connectivity
