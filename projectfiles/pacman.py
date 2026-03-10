@@ -290,8 +290,13 @@ class Pacman(Entity):
         else:
             target_locs = regular_pellet_locs
         
-        # PRIORITY 2: If dangerous ghosts are nearby, use safe pathfinding
+        # PRIORITY 2: If dangerous ghosts are nearby, use backtracking then safe pathfinding
         if ghosts_in_danger_zone:
+            # BACKTRACKING: find a direction whose path stays clear of ghost danger zones
+            escape_dir = self.findEscapeRouteBacktrack(directions, ghosts_in_danger_zone, max_depth=4)
+            if escape_dir is not None:
+                return escape_dir
+            # Fallback: score-based safe pathfinding when backtracking finds no clean path
             best_direction = self.findSafestDirectionToPellet(directions, ghosts_in_danger_zone, target_locs)
             if best_direction is not None:
                 return best_direction
@@ -306,24 +311,122 @@ class Pacman(Entity):
         return directions[0]
     
     def findDirectionToGhost(self, directions, frightened_ghosts):
-        """Find direction towards the nearest frightened ghost to eat it"""
+        """
+        Find direction towards the nearest frightened ghost using DP shortest path.
+        Uses dpShortestPath (memoised BFS hop-count) so Pacman navigates through
+        maze walls correctly instead of following the straight-line Euclidean
+        distance which can point into walls or pick the wrong corridor.
+        """
+        # Find which frightened ghost is closest by true maze distance from current node
+        target_ghost = None
+        best_maze_dist = float('inf')
+        for ghost, _ in frightened_ghosts:
+            for direction in directions:
+                neighbor = self.node.neighbors[direction]
+                if neighbor is None:
+                    continue
+                d = self.dpShortestPath(neighbor, ghost.position)
+                if d < best_maze_dist:
+                    best_maze_dist = d
+                    target_ghost = ghost
+
+        if target_ghost is None:
+            return directions[0]
+
+        # Now pick the direction with shortest DP path to that ghost
         best_direction = directions[0]
-        min_distance = float('inf')
-        
+        min_dist = float('inf')
         for direction in directions:
             neighbor = self.node.neighbors[direction]
             if neighbor is None:
                 continue
-            
-            # Find distance to nearest frightened ghost from this neighbor
-            for ghost, _ in frightened_ghosts:
-                d = (ghost.position - neighbor.position).magnitudeSquared()
-                if d < min_distance:
-                    min_distance = d
-                    best_direction = direction
-        
+            d = self.dpShortestPath(neighbor, target_ghost.position)
+            if d < min_dist:
+                min_dist = d
+                best_direction = direction
+
         return best_direction
-    
+
+    # ==================== BACKTRACKING IMPLEMENTATION ====================
+    def findEscapeRouteBacktrack(self, directions, dangerous_ghosts, max_depth=4):
+        """
+        BACKTRACKING: DFS that explores paths from the current node up to
+        max_depth hops.  Any branch that steps inside a ghost's danger radius
+        is immediately pruned (backtracked), so only genuinely safe directions
+        are returned.
+
+        Algorithm:
+          - For each candidate direction, launch a DFS.
+          - dfs() recurses into neighbours; if a node is dangerous it returns
+            False right away (backtrack).
+          - The visit-set is passed by value so sibling branches are independent
+            (classic backtracking undo step via discard).
+          - Among all safe directions the one that moves Pacman farthest from
+            the nearest ghost is chosen.
+
+        Returns the safest direction, or None if every direction is unsafe.
+        """
+        danger_radius_sq = (3 * TILEWIDTH) ** 2
+
+        def node_is_dangerous(node):
+            for ghost, _ in dangerous_ghosts:
+                if ghost.mode.current not in (FREIGHT, SPAWN):
+                    if (ghost.position - node.position).magnitudeSquared() < danger_radius_sq:
+                        return True
+            return False
+
+        def dfs(node, visited, depth):
+            """
+            Returns True  → a safe path of length >= depth exists from here.
+            Returns False → backtrack; every path from here is dangerous.
+            """
+            if node_is_dangerous(node):
+                return False        # BACKTRACK: ghost too close at this node
+
+            if depth == 0:
+                return True         # Survived max_depth safe hops
+
+            visited.add(id(node))
+
+            for direction in [UP, DOWN, LEFT, RIGHT]:
+                neighbor = node.neighbors[direction]
+                if neighbor is not None and id(neighbor) not in visited:
+                    if self.name in node.access[direction]:
+                        if dfs(neighbor, visited, depth - 1):
+                            visited.discard(id(node))   # BACKTRACK: undo marker
+                            return True
+
+            visited.discard(id(node))   # BACKTRACK: undo marker before returning
+            return False
+
+        safe_directions = []
+        for direction in directions:
+            neighbor = self.node.neighbors[direction]
+            if neighbor is None:
+                continue
+            # Each top-level direction gets a fresh visited set (independent branches)
+            if dfs(neighbor, {id(self.node)}, max_depth - 1):
+                safe_directions.append(direction)
+
+        if not safe_directions:
+            return None
+
+        # Among safe directions pick the one that maximises distance from nearest ghost
+        best_dir = None
+        best_dist = -1
+        for direction in safe_directions:
+            neighbor = self.node.neighbors[direction]
+            min_ghost_d = min(
+                (ghost.position - neighbor.position).magnitudeSquared()
+                for ghost, _ in dangerous_ghosts
+            )
+            if min_ghost_d > best_dist:
+                best_dist = min_ghost_d
+                best_dir = direction
+
+        return best_dir
+    # ==================== END BACKTRACKING ====================
+
     def findSafestDirectionToPellet(self, directions, dangerous_ghosts, pellet_locs):
         """Find direction that balances safety from ghosts with progress towards pellets"""
         best_direction = None
