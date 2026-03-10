@@ -15,12 +15,12 @@ class MainMode(object):
 
     def scatter(self):
         self.mode = SCATTER
-        self.time = 7
+        self.time = 9   # Extended from 7 - ghosts spend more time retreating
         self.timer = 0
 
     def chase(self):
         self.mode = CHASE
-        self.time = 20
+        self.time = 15  # Reduced from 20 - shorter aggressive window
         self.timer = 0
 
 

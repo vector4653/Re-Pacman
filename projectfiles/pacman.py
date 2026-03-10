@@ -156,7 +156,7 @@ class Pacman(Entity):
             return False
         
         # Check for dangerous ghosts approaching from the direction we're heading
-        danger_threshold = (5 * TILEWIDTH) ** 2
+        danger_threshold = (3 * TILEWIDTH) ** 2
         
         ghost_ahead = False
         ghost_behind = False
@@ -280,8 +280,8 @@ class Pacman(Entity):
         if frightened_ghosts:
             return self.findDirectionToGhost(directions, frightened_ghosts)
         
-        # Danger threshold - 5 tiles for detection
-        danger_threshold = (5 * TILEWIDTH) ** 2
+        # Danger threshold - 3 tiles for detection
+        danger_threshold = (3 * TILEWIDTH) ** 2
         ghosts_in_danger_zone = [(g, d) for g, d in dangerous_ghosts if d < danger_threshold]
         
         # Determine target pellets
@@ -293,7 +293,7 @@ class Pacman(Entity):
         # PRIORITY 2: If dangerous ghosts are nearby, use backtracking then safe pathfinding
         if ghosts_in_danger_zone:
             # BACKTRACKING: find a direction whose path stays clear of ghost danger zones
-            escape_dir = self.findEscapeRouteBacktrack(directions, ghosts_in_danger_zone, max_depth=6)
+            escape_dir = self.findEscapeRouteBacktrack(directions, ghosts_in_danger_zone, target_locs, max_depth=6)
             if escape_dir is not None:
                 return escape_dir
             # Fallback: score-based safe pathfinding when backtracking finds no clean path
@@ -313,34 +313,44 @@ class Pacman(Entity):
     def findDirectionToGhost(self, directions, frightened_ghosts):
         """
         Find direction towards the nearest frightened ghost using DP shortest path.
-        Uses dpShortestPath (memoised BFS hop-count) so Pacman navigates through
-        maze walls correctly instead of following the straight-line Euclidean
-        distance which can point into walls or pick the wrong corridor.
-        """
-        # Find which frightened ghost is closest by true maze distance from current node
-        target_ghost = None
-        best_maze_dist = float('inf')
-        for ghost, _ in frightened_ghosts:
-            for direction in directions:
-                neighbor = self.node.neighbors[direction]
-                if neighbor is None:
-                    continue
-                d = self.dpShortestPath(neighbor, ghost.position)
-                if d < best_maze_dist:
-                    best_maze_dist = d
-                    target_ghost = ghost
 
-        if target_ghost is None:
+        Ghost positions are continuous (mid-corridor between nodes), so passing
+        ghost.position to dpShortestPath produces a tile that has no node in the
+        BFS graph → BFS returns inf for every direction → Pacman picks randomly.
+
+        Fix: target ghost.node and ghost.target (both are real intersection nodes).
+        We pick whichever of the two is reachable in fewer hops as the aim point.
+        """
+        target_node = None
+        best_maze_dist = float('inf')
+
+        for ghost, _ in frightened_ghosts:
+            # Always use graph nodes, never the raw continuous position
+            candidates = [ghost.node]
+            if ghost.target is not None and ghost.target is not ghost.node:
+                candidates.append(ghost.target)
+
+            for g_node in candidates:
+                for direction in directions:
+                    neighbor = self.node.neighbors[direction]
+                    if neighbor is None:
+                        continue
+                    d = self.dpShortestPath(neighbor, g_node.position)
+                    if d < best_maze_dist:
+                        best_maze_dist = d
+                        target_node = g_node
+
+        if target_node is None:
             return directions[0]
 
-        # Now pick the direction with shortest DP path to that ghost
+        # Pick the direction with the shortest DP hop-count to the chosen node
         best_direction = directions[0]
         min_dist = float('inf')
         for direction in directions:
             neighbor = self.node.neighbors[direction]
             if neighbor is None:
                 continue
-            d = self.dpShortestPath(neighbor, target_ghost.position)
+            d = self.dpShortestPath(neighbor, target_node.position)
             if d < min_dist:
                 min_dist = d
                 best_direction = direction
@@ -348,7 +358,7 @@ class Pacman(Entity):
         return best_direction
 
     # ==================== BACKTRACKING IMPLEMENTATION ====================
-    def findEscapeRouteBacktrack(self, directions, dangerous_ghosts, max_depth=4):
+    def findEscapeRouteBacktrack(self, directions, dangerous_ghosts, target_locs=None, max_depth=4):
         """
         BACKTRACKING: DFS that explores paths from the current node up to
         max_depth hops.  Any branch that steps inside a ghost's danger radius
@@ -411,17 +421,23 @@ class Pacman(Entity):
         if not safe_directions:
             return None
 
-        # Among safe directions pick the one that maximises distance from nearest ghost
+        # Among safe directions balance ghost distance with progress toward pellets
         best_dir = None
-        best_dist = -1
+        best_score = float('-inf')
         for direction in safe_directions:
             neighbor = self.node.neighbors[direction]
             min_ghost_d = min(
                 (ghost.position - neighbor.position).magnitudeSquared()
                 for ghost, _ in dangerous_ghosts
             )
-            if min_ghost_d > best_dist:
-                best_dist = min_ghost_d
+            if target_locs:
+                pellet_d = self.bfsDistance(neighbor, target_locs)
+                pellet_score = 0 if pellet_d == float('inf') else -pellet_d * (TILEWIDTH ** 2)
+            else:
+                pellet_score = 0
+            score = min_ghost_d + pellet_score
+            if score > best_score:
+                best_score = score
                 best_dir = direction
 
         return best_dir

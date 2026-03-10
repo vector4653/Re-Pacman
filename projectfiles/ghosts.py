@@ -58,7 +58,7 @@ class Ghost(Entity):
             self.directionMethod = self.randomDirection         
 
     def normalMode(self):
-        self.setSpeed(75)  # Reduced from 100 - ghosts now slower than Pacman
+        self.setSpeed(62)  # Nerfed from 75 - ghosts less aggressive
         self.directionMethod = self.goalDirection
         self.homeNode.denyAccess(DOWN, self)
 
