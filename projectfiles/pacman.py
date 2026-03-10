@@ -280,8 +280,8 @@ class Pacman(Entity):
         if frightened_ghosts:
             return self.findDirectionToGhost(directions, frightened_ghosts)
         
-        # Danger threshold - 6 tiles for detection
-        danger_threshold = (6 * TILEWIDTH) ** 2
+        # Danger threshold - 5 tiles for detection
+        danger_threshold = (5 * TILEWIDTH) ** 2
         ghosts_in_danger_zone = [(g, d) for g, d in dangerous_ghosts if d < danger_threshold]
         
         # Determine target pellets
@@ -293,7 +293,7 @@ class Pacman(Entity):
         # PRIORITY 2: If dangerous ghosts are nearby, use backtracking then safe pathfinding
         if ghosts_in_danger_zone:
             # BACKTRACKING: find a direction whose path stays clear of ghost danger zones
-            escape_dir = self.findEscapeRouteBacktrack(directions, ghosts_in_danger_zone, max_depth=4)
+            escape_dir = self.findEscapeRouteBacktrack(directions, ghosts_in_danger_zone, max_depth=6)
             if escape_dir is not None:
                 return escape_dir
             # Fallback: score-based safe pathfinding when backtracking finds no clean path
@@ -366,7 +366,7 @@ class Pacman(Entity):
 
         Returns the safest direction, or None if every direction is unsafe.
         """
-        danger_radius_sq = (3 * TILEWIDTH) ** 2
+        danger_radius_sq = (4 * TILEWIDTH) ** 2
 
         def node_is_dangerous(node):
             for ghost, _ in dangerous_ghosts:

@@ -133,10 +133,11 @@ class Entity(object):
 
     def goalDirection(self, directions):
         """
-        DP-enhanced direction selection.
-        Uses dpShortestPath (memoised BFS) instead of the original greedy
-        Euclidean heuristic, so entities follow the true shortest maze path
-        rather than simply moving toward the tile that looks closest.
+        Original Pac-Man ghost targeting: at each intersection, pick the
+        direction whose neighbour node is closest (Euclidean) to self.goal.
+        This intentionally imperfect heuristic is a core part of the classic
+        ghost AI — ghosts are predictable but not optimal pathfinders.
+        DP shortest-path is reserved for Pacman's own AI (pacmanDirection).
         """
         if self.goal is None:
             return directions[0]
@@ -145,15 +146,13 @@ class Entity(object):
         for direction in directions:
             neighbor = self.node.neighbors[direction]
             if neighbor is not None:
-                dist = self.dpShortestPath(neighbor, self.goal)  # DP call
+                dist = (neighbor.position - self.goal).magnitudeSquared()
                 distances.append(dist)
             else:
                 distances.append(float('inf'))
 
-        min_dist = min(distances)
-        if min_dist == float('inf'):
-            return directions[0]   # No reachable path; fall back to first option
-        return directions[distances.index(min_dist)]
+        index = distances.index(min(distances))
+        return directions[index]
 
     def setStartNode(self, node):
         self.node = node
