@@ -66,6 +66,19 @@ class Pacman(Entity):
             if self.target is self.node:
                 self.direction = STOP
             self.setPosition()
+        else:
+            if self.direction != STOP:
+                next_pos = self.position + self.directions[self.direction] * TILEWIDTH
+                for ghost in self.ghosts:
+                    if ghost.mode.current not in (SPAWN, FREIGHT):
+                        dist_sq = (ghost.position - next_pos).magnitudeSquared()
+                        # If a dangerous ghost is within a 2-tile radius...
+                        if dist_sq < (2 * TILEWIDTH)**2:
+                            curr_dist_sq = (ghost.position - self.position).magnitudeSquared()
+                            # ...and we are actively stepping closer to it, reverse!
+                            if dist_sq < curr_dist_sq:
+                                self.reverseDirection()
+                                break
 
     def eatPellets(self, pelletList):
         for pellet in pelletList:
@@ -111,28 +124,22 @@ class Pacman(Entity):
             start_node = self.node.neighbors[d]
             if start_node is None: continue
             
-            # --- FIX 1: CONTINUOUS PHYSICAL CHECK (The "No Bumping" Filter) ---
-            # Even if the graph says it's safe, look physically into the corridor
             immediate_death = False
             next_step_pos = self.position + self.directions[d] * TILEWIDTH
             
             for ghost in self.ghosts:
                 if ghost.mode.current not in (SPAWN, FREIGHT):
                     dist_sq = (ghost.position - next_step_pos).magnitudeSquared()
-                    # If this step puts us within 1.5 tiles of a ghost...
                     if dist_sq < (1.5 * TILEWIDTH)**2:
                         current_dist_sq = (ghost.position - self.position).magnitudeSquared()
-                        # ...AND it physically moves us closer to them, it's a death trap!
                         if dist_sq < current_dist_sq:
                             immediate_death = True
                             break
                             
-            # Graph-based instant death check (Ghost is 1 step away)
             if immediate_death or ghost_dist.get(id(start_node), float('inf')) <= 1:
                 survival_scores[d] = -9999
                 continue
 
-            # --- PATH SIMULATION (BFS) ---
             queue = [(start_node, 1)] 
             visited = {id(start_node)}
             found_target_dist = float('inf')
@@ -150,39 +157,30 @@ class Pacman(Entity):
                     neighbor = curr.neighbors.get(nd)
                     if neighbor is not None and id(neighbor) not in visited:
                         g_dist = ghost_dist.get(id(neighbor), float('inf'))
-                        # FIX 2: Loosened Survival Condition
-                        # As long as Pacman takes fewer steps than the ghost, it's safe!
                         if dist + 1 < g_dist:
                             visited.add(id(neighbor))
                             queue.append((neighbor, dist + 1))
                             
             if found_target_dist != float('inf'):
-                # Add a tiny penalty to U-turns so he favors flowing forward smoothly
                 penalty = 0.5 if self.oppositeDirection(d) else 0.0
                 safe_directions.append((d, found_target_dist + penalty))
                 
             survival_scores[d] = max_survival_depth
 
         # --- DECISION LOGIC ---
-        
-        # 1. Primary: Take the shortest strictly safe path to a target
         if safe_directions:
             safe_directions.sort(key=lambda x: x[1])
             return safe_directions[0][0]
             
-        # 2. Fallback: Evasion Mode (Surrounded!)
-        # FIX 3: Combine survival depth with physical distance to break ties & stop loops
         best_evasion = directions[0]
         best_score = -float('inf')
         
         for d in directions:
             if survival_scores.get(d, -9999) == -9999:
-                continue # Skip guaranteed death directions
+                continue 
                 
-            # Score based heavily on how many safe steps this path provides
             depth_score = survival_scores.get(d, 0) * 1000
             
-            # Tie-breaker: physically move away from the nearest active ghost
             next_pos = self.position + self.directions[d] * TILEWIDTH
             min_g_dist = float('inf')
             for g in self.ghosts:
@@ -193,7 +191,6 @@ class Pacman(Entity):
                         
             score = depth_score + min_g_dist
             
-            # Massive penalty for U-turns in evasion mode to stop the looping/wiggling
             if self.oppositeDirection(d):
                 score -= 10000
                 
@@ -201,7 +198,6 @@ class Pacman(Entity):
                 best_score = score
                 best_evasion = d
                 
-        # Absolute last resort if completely trapped: just pick the furthest direction
         if best_score == -float('inf'):
             best_evasion = directions[0]
             max_dist = -1
@@ -221,7 +217,6 @@ class Pacman(Entity):
         """BFS directly toward the nearest afraid ghost, avoiding dangerous ones."""
         danger_dist = self.buildGhostDistanceMap(all_nodes)
 
-        # Collect nodes at/near each freight ghost as hunt targets
         hunt_targets = set()
         for ghost in freight_ghosts:
             if hasattr(ghost, 'node') and ghost.node:
@@ -240,11 +235,9 @@ class Pacman(Entity):
             if start_node is None:
                 continue
 
-            # Skip if first step walks into a dangerous ghost
             if danger_dist.get(id(start_node), float('inf')) <= 1:
                 continue
 
-            # Physical safety: don't step toward a normal ghost
             next_step_pos = self.position + self.directions[d] * TILEWIDTH
             danger_step = False
             for ghost in self.ghosts:
@@ -257,13 +250,12 @@ class Pacman(Entity):
             if danger_step:
                 continue
 
-            # BFS toward hunt targets, still routing around dangerous ghosts
             queue = [(start_node, 1)]
             visited = {id(self.node), id(start_node)}
 
             while queue:
                 curr, dist = queue.pop(0)
-                if dist >= best_dist:
+                if dist >= best_dist or dist > 10:
                     break
 
                 if id(curr) in hunt_targets:
@@ -278,7 +270,7 @@ class Pacman(Entity):
                             visited.add(id(neighbor))
                             queue.append((neighbor, dist + 1))
 
-        return best_dir  # None = no safe path to any freight ghost, fall back to normal AI
+        return best_dir  
 
     def buildGhostDistanceMap(self, all_nodes):
         ghost_dist = {id(n): float('inf') for n in all_nodes}
@@ -303,7 +295,7 @@ class Pacman(Entity):
                 neighbor = curr.neighbors.get(d)
                 if neighbor is not None:
                     if dist + 1 < ghost_dist[id(neighbor)]:
-                        ghost_dist[id(neighbor)] = dist + 1
+                        ghost_dist[id(neighbor)] = ghost_dist[id(curr)] + 1
                         queue.append((neighbor, dist + 1))
                         
         return ghost_dist
