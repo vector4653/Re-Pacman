@@ -159,6 +159,76 @@ class NodeGroup(object):
         for entity in entities:
             self.allowHomeAccess(entity)
 
+    # =========================================================================
+    # DAA PROJECT: BACKTRACKING — Maze Connectivity Validator
+    # =========================================================================
+    def validateMazeConnectivity(self, start_key, pellet_positions):
+        """Backtracking DFS to verify all pellet positions are reachable
+        from the given start node in the maze graph.
+
+        Algorithm:
+          - Recursively explore every path from the start node.
+          - At each node: mark visited (CHOOSE), recurse into neighbours,
+            then unmark visited (UN-CHOOSE / BACKTRACK) so the node can
+            be reached again via a different route.
+          - Collect every pellet-adjacent node encountered during traversal.
+          - Return True only if every pellet node was found reachable.
+
+        This is a pure graph-validation utility — it does NOT affect
+        Pacman movement, ghost logic, or any runtime gameplay.
+        """
+        start_node = self.nodesLUT.get(start_key)
+        if start_node is None:
+            return False
+
+        # Build the set of node keys that must be reachable
+        target_keys = set()
+        for col, row in pellet_positions:
+            key = self.constructKey(col, row)
+            if key in self.nodesLUT:
+                target_keys.add(key)
+
+        if not target_keys:
+            return True  # Nothing to validate
+
+        visited = set()   # Mutable state for backtracking
+        found   = set()   # Pellet nodes confirmed reachable
+
+        def backtrack(node):
+            key = (int(node.position.x), int(node.position.y))
+
+            if key in visited:
+                return
+
+            # ---- CHOOSE ----
+            visited.add(key)
+
+            if key in target_keys:
+                found.add(key)
+
+            # Early termination: all targets already found
+            if found == target_keys:
+                visited.discard(key)   # clean up before returning
+                return
+
+            # Recurse into every connected neighbour
+            for direction in [UP, DOWN, LEFT, RIGHT]:
+                neighbor = node.neighbors.get(direction)
+                if neighbor is not None:
+                    backtrack(neighbor)
+                    if found == target_keys:
+                        break            # prune remaining branches
+
+            # ---- UN-CHOOSE (BACKTRACK) ----
+            visited.discard(key)
+
+        backtrack(start_node)
+
+        reachable = found == target_keys
+        print("[Backtracking] Maze connectivity: {}/{} pellet nodes reachable — {}".format(
+            len(found), len(target_keys), "PASS" if reachable else "FAIL"))
+        return reachable
+
     def render(self, screen):
         for node in self.nodesLUT.values():
             node.render(screen)

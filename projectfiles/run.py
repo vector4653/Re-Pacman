@@ -76,6 +76,17 @@ class GameController(object):
         self.ghosts.clyde.startNode.denyAccess(LEFT, self.ghosts.clyde)
         self.mazedata.obj.denyGhostsAccess(self.ghosts, self.nodes)
 
+        # =================================================================
+        # DAA PROJECT: Backtracking — validate maze before gameplay starts
+        # =================================================================
+        pellet_positions = []
+        for p in self.pellets.pelletList:
+            col = int(p.position.x / TILEWIDTH)
+            row = int(p.position.y / TILEHEIGHT)
+            pellet_positions.append((col, row))
+        pac_start_key = self.nodes.constructKey(*self.mazedata.obj.pacmanStart)
+        self.nodes.validateMazeConnectivity(pac_start_key, pellet_positions)
+
     def update(self):
         dt = self.clock.tick(30) / 1000.0
         self.textgroup.update(dt)
