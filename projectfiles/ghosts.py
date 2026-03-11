@@ -22,6 +22,7 @@ class Ghost(Entity):
         Entity.reset(self)
         self.points = 200
         self.directionMethod = self.goalDirection
+        self.setSpeed(62)
 
     def update(self, dt):
         self.sprites.update(dt)

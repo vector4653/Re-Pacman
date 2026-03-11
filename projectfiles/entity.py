@@ -107,18 +107,29 @@ class Entity(object):
         if cache_key in self.dpDistCache:
             return self.dpDistCache[cache_key]   # O(1) DP lookup
 
-        # BFS through the maze graph to find true hop-distance
+        # BFS through the maze graph.
+        # For goals at intersection tiles, returns exact hop-count (breaks early).
+        # For corridor positions (no node at that tile), returns the hop-count to
+        # the intersection node closest by Manhattan tile distance — a good
+        # approximation since corridor pellets lie between their two endpoint nodes.
         queue = deque([(from_node, 0)])
         visited = {id(from_node)}
+        best_tile_dist = float('inf')
         result = float('inf')
 
         while queue:
             current, dist = queue.popleft()
             cx = int(round(current.position.x / TILEWIDTH))
             cy = int(round(current.position.y / TILEHEIGHT))
-            if cx == gx and cy == gy:
+            tile_dist = abs(cx - gx) + abs(cy - gy)
+
+            if tile_dist < best_tile_dist:
+                best_tile_dist = tile_dist
                 result = dist
-                break
+
+            if tile_dist == 0:
+                break  # Exact match; BFS order guarantees this is the optimal hop-count
+
             for direction in [UP, DOWN, LEFT, RIGHT]:
                 neighbor = current.neighbors[direction]
                 if neighbor is not None and id(neighbor) not in visited:
