@@ -1,87 +1,118 @@
-# Re-Pacman ✅
+# Re-Pacman
 
-**Re-Pacman** is a Python reimplementation and extension of the classic Pac-Man game. This version focuses on AI-driven Pac-Man behavior and tuned ghost movement, including:
+Re-Pacman is a Python + Pygame Pac-Man project based on the PacmanCode tutorial codebase, extended with AI-focused gameplay behavior and pathfinding logic.
 
-- A **greedy goal-directed algorithm** used by ghosts to move toward their mode targets (minimizes distance to goal at each decision step).
-- A Pac-Man AI that prioritizes frightened ghosts and power pellets, balances safety vs. progress, and avoids oscillation.
-- Hybrid pathing that combines BFS distance checks, merge-sorted pellet targeting, and late-game cluster targeting.
+## Overview
 
----
+This project keeps the classic Pac-Man loop (pellets, power pellets, ghosts, fruit, levels, lives, score) while adding custom decision systems for movement and target selection.
 
-## 🚀 Features
+Key additions include:
 
-- **Greedy ghost AI:** All ghosts pick the direction that minimizes squared distance to their current goal.
-- **Pac-Man AI enhancements:**
-  - Prioritizes frightened ghosts, then power pellets, then regular pellets.
-  - Safety-aware routing when dangerous ghosts are nearby.
-  - Flee behavior with a cooldown to prevent oscillation.
-  - Hybrid pellet targeting: merge-sorted nearest pellets, BFS distance checks, and late-game densest-region targeting.
-- Standard Pac-Man features: pellets, power pellets (frighten ghosts), fruits, multi-level mazes, and lives/score tracking.
+- Greedy goal-based ghost movement.
+- Pac-Man AI that prioritizes opportunities (frightened ghosts and power pellets) while reacting to nearby danger.
+- Hybrid pellet targeting using sorting and path distance checks.
+- Maze connectivity validation at level load.
 
----
+## Requirements
 
-## 🔧 Requirements
+- Python 3.8+
+- `pygame`
 
-- Python 3.7+
-- pygame (install with pip)
-
-Suggested install:
+Install dependency:
 
 ```bash
 python -m pip install pygame
 ```
 
+## Run
 
----
-
-## ▶️ How to run
-
-From the repository root, run:
+From the repository root:
 
 ```bash
 python projectfiles/run.py
 ```
 
-The game window will open and start on the first level. Press the window close button or quit the window to exit.
+## Controls
 
----
+- `Space`: Pause / unpause
+- Close the game window: Quit
 
-## 🎮 Controls
+## How the AI Works
 
-- Space — pause/unpause the game.
-- Close window — quit.
+- Ghost movement is driven by goal-directed greedy selection in `projectfiles/entity.py` (`goalDirection`).
+  Each candidate direction is scored by squared distance to the current goal, and the minimum is selected.
 
----
+- Pac-Man behavior in `projectfiles/pacman.py` includes:
+  - Prioritizing frightened ghosts when safe.
+  - Prioritizing power pellets under threat.
+  - Flee logic with cooldown to reduce oscillation.
+  - Pellet targeting via distance-aware ordering and path checks.
 
-## 🧠 Implementation details
+- Maze validation runs during game startup in `projectfiles/run.py` by checking pellet reachability from Pac-Man's start node.
 
-- The greedy goal selection lives in `projectfiles/entity.py` in `goalDirection`. For each valid direction, the ghost evaluates the squared distance from the next node to its `goal` and chooses the minimum.
+## Concepts Used in This Project
 
-- Pac-Man AI is implemented in `projectfiles/pacman.py` and includes:
-  - `pacmanDirection` as the main decision method with frightened-ghost chasing, power-pellet priority, and safety-aware routing.
-  - Merge sort for pellet distance ordering (`mergeSort`, `getSortedPelletsByDistance`) to target nearby pellets efficiently.
-  - Hybrid targeting with BFS distance checks and late-game densest-region centroid logic.
-  - `shouldFleeFromGhost` to reverse when a dangerous ghost is ahead, with a cooldown to prevent rapid oscillation.
+This project applies several core Computer Science and game-development concepts:
 
-- Ghost modes and speed tuning are in `projectfiles/ghosts.py` and `projectfiles/modes.py` (scatter/chase/freight/spawn). Ghost speeds are reduced relative to Pac-Man for a more forgiving play pace.
+- Graph modeling:
+  The maze is represented as a node graph (`NodeGroup`) with adjacency links for movement in four directions.
 
----
+- Graph traversal (BFS):
+  Breadth-first search style traversals are used for distance and reachability logic in Pac-Man decision making.
 
-## 📁 Project structure (selected files)
+- Backtracking / DFS validation:
+  A recursive backtracking-based connectivity validator checks whether pellet nodes are reachable from the start.
 
-- `projectfiles/run.py` — main game controller and entry point
-- `projectfiles/pacman.py` — Pac-Man AI behavior
-- `projectfiles/ghosts.py` — Ghost classes, modes, and speed tuning
-- `projectfiles/entity.py` — Base entity behaviors, including `goalDirection` (greedy algorithm)
-- `projectfiles/pellets.py` — Pellet management
-- `projectfiles/nodes.py` — Maze node graph and connectivity
-- `projectfiles/mazedata.py` & `*.txt` — Maze definitions and layout files
-- `projectfiles/sprites.py` — Sprite/graphics helpers
+- Greedy heuristics:
+  Ghost movement uses greedy local choice (pick the direction minimizing squared distance to the current goal).
 
----
+- Dynamic programming (memoization):
+  Path-distance subproblems are cached in entity logic to avoid recomputing repeated shortest-path estimates.
 
-## 📚 Source Code Attribution
+- Multi-source danger mapping:
+  Pac-Man AI builds a danger-distance map from multiple ghost positions to evaluate safe routes.
 
-The original source code for this project was taken from **[pacmancode.com](https://pacmancode.com)**, a comprehensive tutorial series on building a Pac-Man game in Python using Pygame. This project extends and modifies that foundation with additional AI behavior and gameplay tuning.
+- Heuristic decision scoring:
+  Direction choice combines safety constraints, target distance, and reversal penalties for practical real-time behavior.
+
+- Finite state machine (FSM):
+  Ghost behavior modes (`SCATTER`, `CHASE`, `FREIGHT`, `SPAWN`) are managed through timed state transitions.
+
+- Collision detection:
+  Circle-radius overlap checks are used for pellet, fruit, and ghost interactions.
+
+- Event-driven game loop:
+  The game uses a frame update loop with input handling, entity updates, rendering, and pause/state events.
+
+- Object-oriented design:
+  Shared behavior is encapsulated in base classes (`Entity`, `Ghost`), then specialized via inheritance.
+
+- Performance-minded engineering:
+  Cached node lookup and bounded caches are used to keep AI calculations responsive during gameplay.
+
+## Project Structure
+
+- `projectfiles/run.py`: Game controller and main loop
+- `projectfiles/pacman.py`: Pac-Man movement and AI decisions
+- `projectfiles/ghosts.py`: Ghost definitions, updates, and mode behavior
+- `projectfiles/entity.py`: Shared movement logic and goal-direction selection
+- `projectfiles/nodes.py`: Graph nodes, connectivity, and maze traversal support
+- `projectfiles/pellets.py`: Pellet and power-pellet management
+- `projectfiles/mazedata.py`: Maze metadata and level setup helpers
+- `projectfiles/fruit.py`: Fruit spawn and scoring logic
+- `projectfiles/constants.py`: Global constants and game enums
+
+## Notes
+
+- The game starts paused/ready and advances through levels automatically as pellets are cleared.
+- The default life count is set in `projectfiles/run.py`.
+
+## Attribution
+
+Original baseline implementation source:
+
+- PacmanCode tutorial project: https://pacmancode.com
+
+This repository builds on that baseline with additional AI and gameplay adjustments.
 
 
